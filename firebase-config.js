@@ -1,11 +1,11 @@
-// Paste the Firebase web app configuration from Firebase Console → Project settings.
+
 export const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_STORAGE_BUCKET",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyC-gOI1EdInbdsCzN5hCD19765QUST3e8E",
+  authDomain: "birthday-fairyland-31.firebaseapp.com",
+  projectId: "birthday-fairyland-31",
+  storageBucket: "birthday-fairyland-31.firebasestorage.app",
+  messagingSenderId: "949529955355",
+  appId: "1:949529955355:web:0fd22395b4f93999abfcbe"
 };
-// Paste your Firebase Authentication admin UID here (not your password).
+
 export const ADMIN_UID = "PASTE_ADMIN_UID";

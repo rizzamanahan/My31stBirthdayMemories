@@ -1,0 +1,1 @@
+Upload index.html, app.js and assets/birthday-portrait.jpg to your GitHub repository. KEEP your existing firebase-config.js on GitHub; do not overwrite it. Your existing Firebase settings and security rules remain unchanged. Animations are CSS-based, not video files.

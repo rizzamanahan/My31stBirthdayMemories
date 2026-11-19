@@ -4,7 +4,11 @@ import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, q
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
 import { firebaseConfig, ADMIN_UID } from "./firebase-config.js";
 const $=id=>document.getElementById(id);
-const configured=!firebaseConfig.apiKey.startsWith("PASTE_") && !ADMIN_UID.startsWith("PASTE_");
+const configured =
+  Boolean(firebaseConfig.apiKey) &&
+  !firebaseConfig.apiKey.startsWith("PASTE_") &&
+  Boolean(firebaseConfig.projectId) &&
+  !firebaseConfig.projectId.startsWith("PASTE_");
 let admin=false, auth, db, storage, media=[], boothUrl="";
 const pages=['home','photos','videos','booth','wishes','gifts'];
 window.showPage=page=>{if(!pages.includes(page))return;document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===page));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));document.querySelector('main').scrollIntoView({behavior:'smooth'});location.hash=page};

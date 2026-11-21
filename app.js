@@ -32,7 +32,7 @@ function renderMedia(){
       if(type==='videos'||type==='gifts'){
         const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent=visual.tagName==='IMG'?'⛶ Expand photo':'⛶ Expand video';
         expand.setAttribute('aria-label',visual.tagName==='IMG'?'Expand photo to fullscreen':'Expand video to fullscreen');
-        expand.onclick=async()=>{try{if(card.requestFullscreen)await card.requestFullscreen();else throw new Error('Fullscreen unavailable');}catch(e){if(item.provider==='youtube'&&item.youtubeId)window.open('https://www.youtube.com/watch?v='+encodeURIComponent(item.youtubeId),'_blank','noopener,noreferrer');else if(visual.tagName==='IMG'&&item.url)window.open(item.url,'_blank','noopener,noreferrer');else if(visual.requestFullscreen)visual.requestFullscreen().catch(()=>{});}};
+        expand.onclick=async()=>{try{if(document.fullscreenElement){await document.exitFullscreen();return;}if(card.requestFullscreen){await card.requestFullscreen();return;}if(visual.requestFullscreen){await visual.requestFullscreen();return;}alert('Fullscreen is not supported in this browser. Try the fullscreen icon inside the video player.');}catch(e){try{if(visual.requestFullscreen)await visual.requestFullscreen();else alert('Use the fullscreen icon inside the video player.');}catch(_){alert('Use the fullscreen icon inside the video player.');}}};
         foot.append(expand);
       }
       card.append(visual,foot);grid.append(card);

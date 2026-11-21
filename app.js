@@ -27,7 +27,8 @@ function renderMedia(){
         const video=String(item.contentType||'').startsWith('video/');visual=document.createElement(video?'video':'img');visual.src=item.url;
         if(video){visual.controls=true;visual.preload='metadata';}else visual.alt=item.name||'Birthday memory';
       }else continue;
-      const foot=document.createElement('footer'),label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);
+      const foot=document.createElement('footer');
+      if(type!=='photos'){const label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);}
       if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Remove this gallery entry?'))return;try{await deleteDoc(doc(db,'media',item.id));}catch(e){alert(e.message);}};foot.append(del);}
       if(type==='photos'||type==='videos'||type==='gifts'){
         const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent=visual.tagName==='IMG'?'⛶ Expand photo':'⛶ Expand video';

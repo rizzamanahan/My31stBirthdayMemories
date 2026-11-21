@@ -29,10 +29,10 @@ function renderMedia(){
       }else continue;
       const foot=document.createElement('footer'),label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);
       if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Remove this gallery entry?'))return;try{await deleteDoc(doc(db,'media',item.id));}catch(e){alert(e.message);}};foot.append(del);}
-      if(type==='videos'||(type==='gifts'&&item.provider==='youtube')){
-        const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent='⛶ Expand video';
-        expand.setAttribute('aria-label','Expand video to fullscreen');
-        expand.onclick=async()=>{try{if(card.requestFullscreen)await card.requestFullscreen();else throw new Error('Fullscreen unavailable');}catch(e){if(item.provider==='youtube'&&item.youtubeId)window.open('https://www.youtube.com/watch?v='+encodeURIComponent(item.youtubeId),'_blank','noopener,noreferrer');else if(visual.requestFullscreen)visual.requestFullscreen().catch(()=>{});}};
+      if(type==='videos'||type==='gifts'){
+        const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent=visual.tagName==='IMG'?'⛶ Expand photo':'⛶ Expand video';
+        expand.setAttribute('aria-label',visual.tagName==='IMG'?'Expand photo to fullscreen':'Expand video to fullscreen');
+        expand.onclick=async()=>{try{if(card.requestFullscreen)await card.requestFullscreen();else throw new Error('Fullscreen unavailable');}catch(e){if(item.provider==='youtube'&&item.youtubeId)window.open('https://www.youtube.com/watch?v='+encodeURIComponent(item.youtubeId),'_blank','noopener,noreferrer');else if(visual.tagName==='IMG'&&item.url)window.open(item.url,'_blank','noopener,noreferrer');else if(visual.requestFullscreen)visual.requestFullscreen().catch(()=>{});}};
         foot.append(expand);
       }
       card.append(visual,foot);grid.append(card);

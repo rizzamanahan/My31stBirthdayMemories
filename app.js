@@ -14,7 +14,7 @@ function renderMedia(){
   for(const type of ['photos','videos','gifts']){
     const grid=$(type+'Grid');if(!grid)continue;
     const list=media.filter(m=>m.type===type);grid.replaceChildren();
-    if($(type+'Count'))$(type+'Count').textContent=type==='photos'?`${list.length} / 31 photos`:type==='videos'?`${list.length} videos`:`${list.length} gift uploads`;
+    if($(type+'Count'))$(type+'Count').textContent=type==='photos'?`${list.length} / 31 photos`:type==='videos'?`${list.length} videos`:`${list.length} gifts`;
     if(!list.length){grid.innerHTML='<div class="empty">✨ Magical memories coming soon ✨</div>';continue;}
     for(const item of list){
       const card=document.createElement('div');card.className='media';
@@ -29,7 +29,7 @@ function renderMedia(){
       }else continue;
       const foot=document.createElement('footer'),label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);
       if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Remove this gallery entry?'))return;try{await deleteDoc(doc(db,'media',item.id));}catch(e){alert(e.message);}};foot.append(del);}
-      if(type==='videos'){
+      if(type==='videos'||(type==='gifts'&&item.provider==='youtube')){
         const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent='⛶ Expand video';
         expand.setAttribute('aria-label','Expand video to fullscreen');
         expand.onclick=async()=>{try{if(card.requestFullscreen)await card.requestFullscreen();else throw new Error('Fullscreen unavailable');}catch(e){if(item.provider==='youtube'&&item.youtubeId)window.open('https://www.youtube.com/watch?v='+encodeURIComponent(item.youtubeId),'_blank','noopener,noreferrer');else if(visual.requestFullscreen)visual.requestFullscreen().catch(()=>{});}};
@@ -49,4 +49,4 @@ if($('saveBooth'))$('saveBooth').onclick=async()=>{if(!admin)return alert('Admin
 if($('openBooth'))$('openBooth').onclick=()=>boothUrl?window.open(boothUrl,'_blank','noopener,noreferrer'):alert('Photobooth link coming soon!');
 if($('shareBooth'))$('shareBooth').onclick=async()=>{if(!boothUrl)return alert('Photobooth link coming soon!');try{if(navigator.share)await navigator.share({title:'Birthday Photobooth',url:boothUrl});else{await navigator.clipboard.writeText(boothUrl);alert('Link copied!');}}catch(e){if(e.name!=='AbortError')alert(e.message);}};
 // Firebase Storage is not enabled in this project. Upload controls are disabled, not silently broken.
-for(const type of ['photos','videos','gifts']){const input=$(type+'Upload');if(input){input.disabled=true;input.title='Direct uploads require Firebase Storage. Use the private Admin page to add YouTube videos.';}}
+for(const type of ['videos','gifts']){const input=$(type+'Upload');if(input){input.disabled=true;input.title='Direct uploads require Firebase Storage. Use the private Admin page to add YouTube videos.';}}

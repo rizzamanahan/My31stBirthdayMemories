@@ -1,0 +1,15 @@
+BIRTHDAY FAIRYLAND - CLOUDINARY PHOTO UPLOAD
+
+1. Create a free Cloudinary account: https://cloudinary.com/
+2. In Cloudinary Console find your Cloud name.
+3. Go to Settings > Upload > Upload presets, create a preset with Signing Mode = Unsigned. Restrict allowed formats to jpg/jpeg/png/webp/avif, set maximum file size, and set an upload folder such as fairyland31. Configure moderation or restrictions as available.
+4. Edit cloudinary-config.js: replace YOUR_CLOUD_NAME and YOUR_UNSIGNED_PRESET with your actual values. Do NOT use API secret.
+5. Upload index.html, app.js, admin.html, admin.js and cloudinary-config.js to your existing GitHub Pages repository. KEEP firebase-config.js, portrait, and all other assets.
+6. Open /admin.html, sign in with authorized Firebase UID, select multiple birthday photos, click Upload Photos. Each photo is uploaded to Cloudinary and its URL saved in Firestore media collection. Gift photos also have a direct upload form. YouTube video/gift links and greetings continue unchanged.
+7. Firestore security rules MUST limit writes to your ADMIN_UID; existing media rules must permit documents with provider=cloudinary.
+
+IMPORTANT SECURITY: GitHub Pages is public, so an unsigned Cloudinary upload preset can be discovered and used by others, EVEN THOUGH the upload form is behind Firebase Admin login. Firebase auth protects Firestore writes, not Cloudinary uploads. Restrict preset formats, file size, folder, and monitor usage; disable preset if abused. Truly private/admin-authenticated Cloudinary uploads require a server-side signed-upload endpoint that verifies Firebase ID tokens and keeps API secret server-side.
+
+Removing an entry in Admin removes its Firestore document only; it does NOT delete the Cloudinary asset. Delete unwanted assets in Cloudinary Media Library.
+
+Free Cloudinary plan has usage limits and may change.

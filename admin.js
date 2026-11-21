@@ -2,6 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { firebaseConfig, ADMIN_UID } from './firebase-config.js';
+import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './cloudinary-config.js';
 const $=id=>document.getElementById(id),app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
 let isAdmin=false;
 function youtubeId(raw){try{const u=new URL(raw.trim());const host=u.hostname.toLowerCase();let id='';if(host==='youtu.be'||host==='www.youtu.be')id=u.pathname.split('/')[1];else if(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','www.youtube-nocookie.com','youtube-nocookie.com'].includes(host)){if(u.pathname==='/watch')id=u.searchParams.get('v');else if(/^\/(shorts|embed|live)\//.test(u.pathname))id=u.pathname.split('/')[2];}return /^[A-Za-z0-9_-]{11}$/.test(id||'')?id:null;}catch{return null;}}
@@ -24,19 +25,48 @@ function validPhotoUrl(raw){
   return u.href;
  }catch{return null;}
 }
-$('photoForm').onsubmit=async e=>{
- e.preventDefault();if(!isAdmin)return status('Please sign in as Admin.');
- const url=validPhotoUrl($('photoUrl').value),name=$('photoTitle').value.trim();
- if(!url)return status('Use a direct HTTPS image link from this repository’s photos folder (.jpg, .png, .webp, .gif, or .avif).');
- if(!name)return status('Please enter a photo caption.');
- const button=$('addPhoto');button.disabled=true;status('Saving photo link...');
+// Unsigned uploads do NOT authenticate to Cloudinary with Firebase. Restrict the preset in Cloudinary.
+const imageTypes=new Set(['image/jpeg','image/png','image/webp','image/avif']);
+async function uploadImage(file){
+ if(!imageTypes.has(file.type))throw Error('Only JPG, PNG, WebP, or AVIF images are supported.');
+ if(file.size>10*1024*1024)throw Error(file.name+' is over 10 MB. Compress it first.');
+ if(!CLOUDINARY_CLOUD_NAME||!CLOUDINARY_UPLOAD_PRESET||CLOUDINARY_CLOUD_NAME.includes('YOUR_'))throw Error('Configure cloudinary-config.js first.');
+ const body=new FormData();body.append('file',file);body.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
+ const response=await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(CLOUDINARY_CLOUD_NAME)}/image/upload`,{method:'POST',body});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(result.error?.message||'Cloudinary upload failed ('+response.status+')');
+ const url=new URL(result.secure_url||'');
+ if(url.protocol!=='https:'||url.hostname!=='res.cloudinary.com'||!result.public_id)throw Error('Invalid Cloudinary upload response.');
+ return {url:url.href,publicId:result.public_id};
+}
+async function uploadImagesToGallery({files,caption,type,button}){
+ if(!isAdmin)return status('Please sign in as Admin.');
+ const selected=[...files];if(!selected.length)return status('Select images first.');
+ button.disabled=true;
  try{
-  const existing=await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js').then(m=>m.getDocs(collection(db,'media')));
-  if(existing.docs.filter(d=>d.data().type==='photos').length>=31){status('Your photo gallery already has 31 entries. Remove one before adding another.');return;}
-  await addDoc(collection(db,'media'),{type:'photos',provider:'github',name,url,contentType:'image/jpeg',createdAt:serverTimestamp()});
-  $('photoForm').reset();status('Photo added! View the Photos gallery. 💗');
- }catch(err){status('Could not save photo: '+err.message);}finally{button.disabled=false;}
-};
+  const {getDocs}=await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js');
+  if(type==='photos'){
+   const existing=await getDocs(collection(db,'media'));
+   const count=existing.docs.filter(d=>d.data().type==='photos').length;
+   if(count+selected.length>31)throw Error(`Only ${31-count} photo slots left (31 maximum).`);
+  }
+  let completed=0;
+  for(const file of selected){
+   status(`Uploading ${completed+1} of ${selected.length}: ${file.name}...`);
+   const uploaded=await uploadImage(file);
+   const name=caption||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' ');
+   try{
+    await addDoc(collection(db,'media'),{type,provider:'cloudinary',name,url:uploaded.url,cloudinaryPublicId:uploaded.publicId,contentType:file.type,createdAt:serverTimestamp()});
+   }catch(error){throw Error('Image uploaded to Cloudinary but Firestore save failed: '+error.message+' (image: '+uploaded.publicId+')');}
+   completed++;
+  }
+  status(`Successfully uploaded ${completed} ${type==='photos'?'birthday photos':'gift photos'}! 💗`);
+  return true;
+ }catch(error){status('Upload stopped: '+error.message);return false;}
+ finally{button.disabled=false;}
+}
+$('photoUploadForm').onsubmit=async e=>{e.preventDefault();const ok=await uploadImagesToGallery({files:$('photoFiles').files,caption:$('photoCaption').value.trim(),type:'photos',button:$('uploadPhotos')});if(ok)$('photoUploadForm').reset();};
+$('giftPhotoUploadForm').onsubmit=async e=>{e.preventDefault();const ok=await uploadImagesToGallery({files:$('giftPhotoFiles').files,caption:$('giftPhotoCaption').value.trim(),type:'gifts',button:$('uploadGiftPhotos')});if(ok)$('giftPhotoUploadForm').reset();};
 onSnapshot(collection(db,'media'),snapshot=>{
  const list=$('managedPhotos');list.replaceChildren();const photos=snapshot.docs.filter(d=>d.data().type==='photos');
  if(!photos.length){list.textContent='No photos added yet.';return;}

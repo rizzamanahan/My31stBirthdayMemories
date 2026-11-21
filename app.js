@@ -29,12 +29,13 @@ function renderMedia(){
       }else continue;
       const foot=document.createElement('footer'),label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);
       if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Remove this gallery entry?'))return;try{await deleteDoc(doc(db,'media',item.id));}catch(e){alert(e.message);}};foot.append(del);}
-      if(type==='videos'||type==='gifts'){
+      if(type==='photos'||type==='videos'||type==='gifts'){
         const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent=visual.tagName==='IMG'?'⛶ Expand photo':'⛶ Expand video';
         expand.setAttribute('aria-label',visual.tagName==='IMG'?'Expand photo to fullscreen':'Expand video to fullscreen');
         expand.onclick=()=>openFairylandViewer(item, visual);
         foot.append(expand);
       }
+      if(type==='photos' && visual.tagName==='IMG'){visual.style.cursor='zoom-in';visual.tabIndex=0;visual.setAttribute('role','button');visual.setAttribute('aria-label','Expand photo');visual.onclick=()=>openFairylandViewer(item,visual);visual.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openFairylandViewer(item,visual);}};}
       card.append(visual,foot);grid.append(card);
     }
   }

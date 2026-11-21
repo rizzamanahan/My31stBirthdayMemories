@@ -1,22 +1,13 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { firebaseConfig, ADMIN_UID } from "./firebase-config.js";
-const $=id=>document.getElementById(id);
-if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('PASTE_') || !ADMIN_UID || ADMIN_UID.startsWith('PASTE_')) {
-  $('status').textContent='Complete firebase-config.js before signing in.';
-  $('loginForm').hidden=true;
-} else {
-  const auth=getAuth(initializeApp(firebaseConfig));
-  onAuthStateChanged(auth,user=>{
-    const owner=Boolean(user && user.uid===ADMIN_UID);
-    $('signedIn').hidden=!owner;
-    $('loginForm').hidden=owner;
-    $('status').textContent=user&&!owner?'This account is not authorized to manage the birthday album.':'';
-  });
-  $('loginForm').addEventListener('submit',async e=>{
-    e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('status').textContent='Signing in…';
-    try{const cred=await signInWithEmailAndPassword(auth,$('email').value,$('password').value);$('password').value='';if(cred.user.uid!==ADMIN_UID){await signOut(auth);throw Error('This account is not the authorized owner.')} $('status').textContent='Welcome back! Choose a section to manage.';}
-    catch(error){$('status').textContent=error.message}finally{btn.disabled=false}
-  });
-  $('logout').addEventListener('click',async()=>{await signOut(auth);$('status').textContent='Signed out.'});
-}
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { firebaseConfig, ADMIN_UID } from './firebase-config.js';
+const $=id=>document.getElementById(id),app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+let isAdmin=false;
+function youtubeId(raw){try{const u=new URL(raw.trim());const host=u.hostname.toLowerCase();let id='';if(host==='youtu.be'||host==='www.youtu.be')id=u.pathname.split('/')[1];else if(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','www.youtube-nocookie.com','youtube-nocookie.com'].includes(host)){if(u.pathname==='/watch')id=u.searchParams.get('v');else if(/^\/(shorts|embed|live)\//.test(u.pathname))id=u.pathname.split('/')[2];}return /^[A-Za-z0-9_-]{11}$/.test(id||'')?id:null;}catch{return null;}}
+const status=message=>{$('status').textContent=message;};
+onAuthStateChanged(auth,user=>{isAdmin=!!user&&user.uid===ADMIN_UID;$('loginForm').hidden=isAdmin;$('signedIn').hidden=!isAdmin;$('videoManager').hidden=!isAdmin;if(user&&!isAdmin)status('This account is not the authorized Admin.');else status(isAdmin?'Signed in as owner. You can add YouTube videos below.':'');});
+$('loginForm').onsubmit=async e=>{e.preventDefault();try{const result=await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);if(result.user.uid!==ADMIN_UID){await signOut(auth);status('This account is not the authorized Admin.');}}catch(err){status('Sign-in failed: '+err.message);}};
+$('logout').onclick=()=>signOut(auth);
+$('videoForm').onsubmit=async e=>{e.preventDefault();if(!isAdmin)return status('Please sign in as Admin.');const id=youtubeId($('youtubeUrl').value),name=$('videoTitle').value.trim();if(!id)return status('Please enter a valid YouTube watch, youtu.be, Shorts, or embed URL.');if(!name)return status('Please enter a title.');const btn=$('addVideo');btn.disabled=true;status('Saving video link...');try{await addDoc(collection(db,'media'),{type:'videos',provider:'youtube',youtubeId:id,name,url:`https://www.youtube.com/watch?v=${id}`,createdAt:serverTimestamp()});$('videoForm').reset();status('Video added! Open the Videos gallery to see it. 💗');}catch(err){status('Could not save video: '+err.message);}finally{btn.disabled=false;}};
+onSnapshot(collection(db,'media'),snapshot=>{const list=$('managedVideos');list.replaceChildren();const videos=snapshot.docs.filter(d=>d.data().type==='videos');if(!videos.length){list.textContent='No videos added yet.';return;}for(const d of videos){const row=document.createElement('div');row.className='managed';const label=document.createElement('span');label.textContent=d.data().name||'Birthday video';const button=document.createElement('button');button.textContent='Remove';button.disabled=!isAdmin;button.onclick=async()=>{if(!isAdmin||!confirm('Remove this video from the gallery?'))return;try{await deleteDoc(doc(db,'media',d.id));status('Video removed from gallery.');}catch(e){status('Could not remove video: '+e.message);}};row.append(label,button);list.append(row);}},err=>status('Cannot load video list: '+err.message));

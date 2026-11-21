@@ -22,13 +22,19 @@ function renderMedia(){
       if(item.provider==='youtube' && item.youtubeId){
         visual=document.createElement('iframe');visual.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(item.youtubeId)}`;
         visual.title=item.name||'Birthday video';visual.loading='lazy';visual.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';visual.allowFullscreen=true;
-        visual.style.cssText='width:100%;height:190px;border:0;display:block;background:#f8d7e9';
+        visual.referrerPolicy='strict-origin-when-cross-origin';
       }else if(item.url){
         const video=String(item.contentType||'').startsWith('video/');visual=document.createElement(video?'video':'img');visual.src=item.url;
         if(video){visual.controls=true;visual.preload='metadata';}else visual.alt=item.name||'Birthday memory';
       }else continue;
       const foot=document.createElement('footer'),label=document.createElement('span');label.textContent=item.name||'Birthday memory';foot.append(label);
       if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Remove this gallery entry?'))return;try{await deleteDoc(doc(db,'media',item.id));}catch(e){alert(e.message);}};foot.append(del);}
+      if(type==='videos'){
+        const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent='⛶ Expand video';
+        expand.setAttribute('aria-label','Expand video to fullscreen');
+        expand.onclick=async()=>{try{if(card.requestFullscreen)await card.requestFullscreen();else throw new Error('Fullscreen unavailable');}catch(e){if(item.provider==='youtube'&&item.youtubeId)window.open('https://www.youtube.com/watch?v='+encodeURIComponent(item.youtubeId),'_blank','noopener,noreferrer');else if(visual.requestFullscreen)visual.requestFullscreen().catch(()=>{});}};
+        foot.append(expand);
+      }
       card.append(visual,foot);grid.append(card);
     }
   }

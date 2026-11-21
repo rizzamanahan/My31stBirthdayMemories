@@ -32,12 +32,48 @@ function renderMedia(){
       if(type==='videos'||type==='gifts'){
         const expand=document.createElement('button');expand.type='button';expand.className='video-expand';expand.textContent=visual.tagName==='IMG'?'⛶ Expand photo':'⛶ Expand video';
         expand.setAttribute('aria-label',visual.tagName==='IMG'?'Expand photo to fullscreen':'Expand video to fullscreen');
-        expand.onclick=async()=>{try{if(document.fullscreenElement){await document.exitFullscreen();return;}if(card.requestFullscreen){await card.requestFullscreen();return;}if(visual.requestFullscreen){await visual.requestFullscreen();return;}alert('Fullscreen is not supported in this browser. Try the fullscreen icon inside the video player.');}catch(e){try{if(visual.requestFullscreen)await visual.requestFullscreen();else alert('Use the fullscreen icon inside the video player.');}catch(_){alert('Use the fullscreen icon inside the video player.');}}};
+        expand.onclick=()=>openFairylandViewer(item, visual);
         foot.append(expand);
       }
       card.append(visual,foot);grid.append(card);
     }
   }
+}
+// Full-screen in-page viewer: stays on Birthday Fairyland, never navigates to YouTube.
+const viewerStyle=document.createElement('style');
+viewerStyle.textContent=`
+.fairyland-viewer{position:fixed;inset:0;z-index:2147483647;background:rgba(15,5,18,.96);display:flex;align-items:center;justify-content:center;padding:64px 18px 24px;box-sizing:border-box}
+.fairyland-viewer[hidden]{display:none!important}
+.fairyland-viewer-media{width:min(96vw,1200px);height:min(78vh,780px);display:flex;align-items:center;justify-content:center}
+.fairyland-viewer-media iframe,.fairyland-viewer-media video{width:100%;height:100%;border:0;background:#000;border-radius:12px}
+.fairyland-viewer-media img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
+.fairyland-viewer-close{position:absolute;right:18px;top:14px;background:#ed4397;color:white;border:0;border-radius:100px;padding:12px 18px;font-weight:700;cursor:pointer;z-index:2}
+body.fairyland-viewer-open{overflow:hidden}
+@media(max-width:600px){.fairyland-viewer{padding:64px 8px 18px}.fairyland-viewer-media{width:100%;height:76vh}}
+`;
+document.head.append(viewerStyle);
+const fairylandViewer=document.createElement('div');
+fairylandViewer.className='fairyland-viewer';fairylandViewer.hidden=true;
+fairylandViewer.setAttribute('role','dialog');fairylandViewer.setAttribute('aria-modal','true');fairylandViewer.setAttribute('aria-label','Expanded birthday memory');
+const fairylandClose=document.createElement('button');fairylandClose.type='button';fairylandClose.className='fairyland-viewer-close';fairylandClose.textContent='✕ Close';
+const fairylandMedia=document.createElement('div');fairylandMedia.className='fairyland-viewer-media';
+fairylandViewer.append(fairylandClose,fairylandMedia);document.body.append(fairylandViewer);
+let previousFocus=null;
+function closeFairylandViewer(){fairylandMedia.replaceChildren();fairylandViewer.hidden=true;document.body.classList.remove('fairyland-viewer-open');previousFocus?.focus?.();}
+fairylandClose.onclick=closeFairylandViewer;
+fairylandViewer.addEventListener('click',e=>{if(e.target===fairylandViewer)closeFairylandViewer();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!fairylandViewer.hidden)closeFairylandViewer();});
+function openFairylandViewer(item, original){
+  previousFocus=document.activeElement;
+  const visual=original.cloneNode(false);
+  if(visual.tagName==='IFRAME'){
+    // Embedded YouTube player stays on this website; no separate YouTube link is opened.
+    visual.allowFullscreen=true;
+    visual.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+  }
+  if(visual.tagName==='VIDEO'){visual.controls=true;visual.autoplay=true;}
+  fairylandMedia.replaceChildren(visual);
+  fairylandViewer.hidden=false;document.body.classList.add('fairyland-viewer-open');fairylandClose.focus();
 }
 function renderWishes(){const box=$('wishesList');if(!box)return;box.replaceChildren();if(!wishes.length){box.textContent='Be the first to leave a magical wish! ✨';return;}for(const w of wishes){const el=document.createElement('div');el.className='wish';const title=document.createElement('strong'),msg=document.createElement('p'),date=document.createElement('small');title.textContent='💌 '+(w.name||'Guest');msg.textContent=w.message||'';date.textContent=w.createdAt?.toDate?.().toLocaleDateString()||'Just now';el.append(title,msg,date);if(admin){const del=document.createElement('button');del.className='remove';del.textContent='Delete';del.onclick=async()=>{if(confirm('Delete greeting?'))try{await deleteDoc(doc(db,'wishes',w.id));}catch(e){alert(e.message);}};el.append(del);}box.append(el);}}
 onAuthStateChanged(auth,user=>{admin=!!user&&user.uid===ADMIN_UID;document.querySelectorAll('.admin-only').forEach(el=>el.classList.toggle('hidden',!admin));renderMedia();renderWishes();});

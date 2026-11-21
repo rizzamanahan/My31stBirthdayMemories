@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js";
 import { firebaseConfig, ADMIN_UID } from "./firebase-config.js";
 const $=id=>document.getElementById(id);
 const configured=Boolean(firebaseConfig.apiKey && firebaseConfig.projectId) && !firebaseConfig.apiKey.startsWith('PASTE_') && !firebaseConfig.projectId.startsWith('PASTE_');
@@ -20,7 +20,91 @@ onAuthStateChanged(auth,user=>setAdmin(!!user&&user.uid===ADMIN_UID));
 onSnapshot(collection(db,'media'),snapshot=>{media=snapshot.docs.map(d=>({id:d.id,...d.data()}));renderMedia()},err=>console.error(err));
 onSnapshot(query(collection(db,'wishes'),orderBy('createdAt','desc')),snapshot=>renderWishes(snapshot.docs.map(d=>({id:d.id,...d.data()}))),err=>{console.error('Greetings listener:',err);if($('wishesList'))$('wishesList').textContent='Unable to load greetings: '+err.message});
 onSnapshot(doc(db,'settings','photobooth'),snap=>{boothUrl=snap.data()?.url||'';if($('boothUrl'))$('boothUrl').value=boothUrl;$('boothStatus').textContent=boothUrl?'Photobooth link is ready! ✨':'Photobooth link coming soon.'});
-for(const type of ['photos','videos','gifts'])if($(type+'Upload'))$(type+'Upload').onchange=async e=>{const files=[...e.target.files];e.target.value='';if(!admin)return alert('Owner login required.');if(type==='photos'&&media.filter(m=>m.type===type).length+files.length>31)return alert('Maximum 31 uploads in this section.');for(const file of files){if(!(file.type.startsWith('image/')||file.type.startsWith('video/')))continue;if(type==='photos'&&!file.type.startsWith('image/'))continue;if(type==='videos'&&!file.type.startsWith('video/'))continue;const id=crypto.randomUUID(),path=`birthday/${type}/${id}/${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;try{const r=ref(storage,path);await uploadBytes(r,file,{contentType:file.type});const url=await getDownloadURL(r);await setDoc(doc(db,'media',id),{type,name:file.name,url,path,contentType:file.type,createdAt:serverTimestamp()})}catch(err){alert('Upload failed: '+err.message);break}}};
+// Show upload progress without requiring changes to index.html.
+function uploadStatus(type) {
+  const input = $(type + 'Upload');
+  if (!input) return null;
+  let box = $(type + 'UploadStatus');
+  if (box) return box;
+  box = document.createElement('div');
+  box.id = type + 'UploadStatus';
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
+  box.style.cssText = 'width:100%;margin:12px 0;padding:12px;border-radius:12px;background:#fff2f8;color:#79365d;font:14px sans-serif;';
+  const message = document.createElement('div');
+  message.className = 'upload-message';
+  const bar = document.createElement('progress');
+  bar.max = 100;
+  bar.value = 0;
+  bar.style.cssText = 'display:block;width:100%;height:18px;margin-top:8px;accent-color:#e94991;';
+  box.append(message, bar);
+  input.closest('.toolbar')?.insertAdjacentElement('afterend', box);
+  return box;
+}
+function showUpload(type, message, percent) {
+  const box = uploadStatus(type);
+  if (!box) return;
+  box.querySelector('.upload-message').textContent = message;
+  const bar = box.querySelector('progress');
+  bar.value = Math.max(0, Math.min(100, percent));
+}
+for (const type of ['photos', 'videos', 'gifts']) {
+  const input = $(type + 'Upload');
+  if (!input) continue;
+  input.addEventListener('change', async event => {
+    const files = [...event.target.files];
+    event.target.value = '';
+    if (!files.length) return;
+    if (!admin) {
+      showUpload(type, 'Owner login required. Please sign in to your private Admin page first.', 0);
+      return;
+    }
+    if (type === 'photos' && media.filter(item => item.type === 'photos').length + files.length > 31) {
+      showUpload(type, 'Maximum 31 photos allowed.', 0);
+      return;
+    }
+    input.disabled = true;
+    let completed = 0;
+    try {
+      for (const file of files) {
+        const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|avi)$/i.test(file.name);
+        const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|heic)$/i.test(file.name);
+        if ((type === 'videos' && !isVideo) || (type === 'photos' && !isImage) || (type === 'gifts' && !isImage && !isVideo)) {
+          throw new Error('Unsupported file: ' + file.name + '. Try an MP4 video or JPG/PNG image.');
+        }
+        const id = crypto.randomUUID();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `birthday/${type}/${id}/${safeName}`;
+        const storageRef = ref(storage, path);
+        const fileSizeMB = (file.size / 1024 / 1024).toFixed(1);
+        showUpload(type, `Uploading ${completed + 1}/${files.length}: ${file.name} (${fileSizeMB} MB) — 0%`, 0);
+        await new Promise((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, file, { contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg') });
+          task.on('state_changed', snapshot => {
+            const percent = snapshot.totalBytes ? Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100) : 0;
+            showUpload(type, `Uploading ${completed + 1}/${files.length}: ${file.name} (${fileSizeMB} MB) — ${percent}%`, percent);
+          }, reject, resolve);
+        });
+        showUpload(type, `Upload complete. Saving ${file.name} to gallery…`, 100);
+        const url = await getDownloadURL(storageRef);
+        await setDoc(doc(db, 'media', id), {
+          type, name: file.name, url, path,
+          contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          createdAt: serverTimestamp()
+        });
+        completed++;
+        showUpload(type, `Saved ${completed}/${files.length} file(s) to the gallery. 💗`, 100);
+      }
+    } catch (error) {
+      console.error('Birthday media upload failed:', error);
+      const reason = error.code ? `${error.code}: ${error.message}` : error.message;
+      showUpload(type, `Upload failed: ${reason}`, 0);
+      alert(`Upload failed: ${reason}`);
+    } finally {
+      input.disabled = false;
+    }
+  });
+}
 if($('wishForm'))$('wishForm').onsubmit=async e=>{e.preventDefault();const name=$('wishName').value.trim(),message=$('wishText').value.trim(),btn=e.target.querySelector('button');if(!name||!message)return;if(name.length>60||message.length>1000)return alert('Message too long.');btn.disabled=true;try{await addDoc(collection(db,'wishes'),{name,message,createdAt:serverTimestamp()});e.target.reset();alert('Your birthday wish is posted! 💖')}catch(err){alert('Could not save greeting: '+err.message)}finally{btn.disabled=false}};
 if($('saveBooth'))$('saveBooth').onclick=async()=>{if(!admin)return;try{const u=new URL($('boothUrl').value);if(u.protocol!=='https:')throw Error('Use an https:// link');await setDoc(doc(db,'settings','photobooth'),{url:u.href})}catch(e){alert(e.message)}};
 }
